@@ -6,6 +6,7 @@ import Header from './components/Header';
 import MenuList from './components/MenuList';
 import ProductModal from './components/ProductModal';
 import { CATEGORIES, PRODUCTS, WHATSAPP_NUMBER } from './data/menu';
+import { useGeolocation } from './hooks/useGeolocation';
 import { useLocalStorageCart } from './hooks/useLocalStorageCart';
 import type { CartSelection, CartTotals, Product } from './types/menu';
 import { buildCartLines, createCartKey } from './utils/cart';
@@ -23,6 +24,16 @@ const App: FC = () => {
   const cartButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const { cartMap, increment, clear } = useLocalStorageCart();
+  const geolocation = useGeolocation({
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 300000,
+  });
+
+  const geolocationStatus = geolocation.status;
+  const geolocationError = geolocation.error;
+  const geolocationPosition = geolocation.coords;
+  const geolocationOptions = geolocation.options;
 
   const cartLines = useMemo(() => buildCartLines(cartMap, PRODUCTS), [cartMap]);
 
@@ -85,21 +96,58 @@ const App: FC = () => {
   };
 
   const handleRequestLocation = (): void => {
-    if (!('geolocation' in navigator)) {
-      window.alert('Geolocalização indisponível');
+    const requestOptions =
+      typeof geolocationOptions.maximumAge === 'number'
+        ? { maximumAge: geolocationOptions.maximumAge }
+        : undefined;
+    geolocation.requestCurrentPosition(requestOptions);
+  };
+
+  useEffect((): void => {
+    if (geolocationStatus === 'idle') {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setAddress(`Coordenadas: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-      },
-      () => {
-        window.alert('Falha ao obter localização');
-      },
-    );
-  };
+    if (geolocationStatus === 'loading') {
+      setAddress('Obtendo localização...');
+      return;
+    }
+
+    if (geolocationStatus === 'unsupported') {
+      setAddress('Geolocalização indisponível');
+      return;
+    }
+
+    if (geolocationStatus === 'error') {
+      const fallbackMessage = geolocationError?.message?.trim()
+        ? geolocationError.message
+        : 'Falha ao obter localização';
+      setAddress(fallbackMessage);
+      return;
+    }
+
+    if (geolocationStatus === 'success' && geolocationPosition) {
+      const { latitude, longitude } = geolocationPosition.coords;
+      let message = `Coordenadas: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+
+      if (typeof geolocationOptions.maximumAge === 'number' && geolocationOptions.maximumAge > 0) {
+        const maxAgeSeconds = Math.round(geolocationOptions.maximumAge / 1000);
+        const ageSeconds = Math.max(
+          0,
+          Math.round((Date.now() - geolocationPosition.timestamp) / 1000),
+        );
+        const remainingSeconds = Math.max(0, maxAgeSeconds - ageSeconds);
+        message += ` • cache ${remainingSeconds}s`;
+      }
+
+      setAddress(message);
+    }
+  }, [
+    geolocationStatus,
+    geolocationError,
+    geolocationPosition,
+    geolocationOptions.maximumAge,
+  ]);
 
   const handleOpenProduct = (product: Product): void => {
     setSelectedProduct(product);
@@ -174,6 +222,8 @@ const App: FC = () => {
         onAddressChange={handleAddressChange}
         onRequestLocation={handleRequestLocation}
         onToggleTheme={handleToggleTheme}
+        locationStatus={geolocationStatus}
+        isLocationSupported={geolocation.isSupported}
       />
       <CategoryTabs
         categories={CATEGORIES}
