@@ -1,0 +1,81 @@
+.search {
+  padding: 10px 14px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+  padding: 4px 14px 96px;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.card {
+  display: flex;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px;
+  align-items: center;
+}
+
+.thumb {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--card);
+  border: 0;
+  padding: 0;
+  display: block;
+}
+
+.meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.desc {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.price {
+  font-weight: 800;
+}
+
+.addButton {
+  margin-left: auto;
+  background: var(--brand);
+  color: #fff;
+  border: 0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: var(--shadow);
+}

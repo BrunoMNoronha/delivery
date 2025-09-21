@@ -1,0 +1,60 @@
+:root {
+  --bg: #fff;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --brand: #ff7a00;
+  --brand-2: #ffb703;
+  --card: #f8fafc;
+  --line: #e2e8f0;
+  --ok: #16a34a;
+  --warn: #f59e0b;
+  --shadow: 0 8px 24px rgba(2, 6, 23, 0.12);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b1120;
+  --fg: #f8fafc;
+  --muted: #cbd5f5;
+  --card: #111827;
+  --line: #1f2937;
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.48);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+button {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+@media (min-width: 481px) {
+  body {
+    background: linear-gradient(180deg, #f1f5f9, transparent 220px);
+  }
+}
+
+@media (min-width: 481px) {
+  [data-theme='dark'] body {
+    background: linear-gradient(180deg, #020617, transparent 220px);
+  }
+}
