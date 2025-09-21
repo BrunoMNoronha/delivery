@@ -1,4 +1,5 @@
 import type { ChangeEventHandler, FC } from 'react';
+import type { GeolocationStatus } from '../hooks/useGeolocation';
 import styles from '../styles/Header.module.css';
 
 export interface HeaderProps {
@@ -6,6 +7,8 @@ export interface HeaderProps {
   onAddressChange: (value: string) => void;
   onRequestLocation: () => void;
   onToggleTheme?: () => void;
+  locationStatus: GeolocationStatus;
+  isLocationSupported: boolean;
 }
 
 const Header: FC<HeaderProps> = ({
@@ -13,8 +16,10 @@ const Header: FC<HeaderProps> = ({
   onAddressChange,
   onRequestLocation,
   onToggleTheme,
+  locationStatus,
+  isLocationSupported,
 }) => {
-  const handleInputChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+  const handleInputChange: ChangeEventHandler<HTMLInputElement> = (event): void => {
     onAddressChange(event.target.value);
   };
 
@@ -25,6 +30,20 @@ const Header: FC<HeaderProps> = ({
   const handleThemeClick = (): void => {
     onToggleTheme?.();
   };
+
+  const isLoading: boolean = locationStatus === 'loading';
+  const isError: boolean = locationStatus === 'error';
+  const isUnavailable: boolean = locationStatus === 'unsupported' || !isLocationSupported;
+  const buttonLabel: string = isLoading
+    ? 'Buscando...'
+    : isError
+      ? 'Tentar novamente'
+      : isUnavailable
+        ? 'GPS indisponível'
+        : 'Usar GPS';
+  const buttonClassName: string = isLoading
+    ? `${styles.gpsButton} ${styles.gpsButtonLoading}`
+    : styles.gpsButton;
 
   return (
     <header className={styles.header}>
@@ -50,8 +69,14 @@ const Header: FC<HeaderProps> = ({
           value={address}
           onChange={handleInputChange}
         />
-        <button type="button" className={styles.gpsButton} onClick={handleGpsClick}>
-          Usar GPS
+        <button
+          type="button"
+          className={buttonClassName}
+          onClick={handleGpsClick}
+          disabled={isLoading || isUnavailable}
+          aria-busy={isLoading}
+        >
+          {buttonLabel}
         </button>
       </div>
     </header>
