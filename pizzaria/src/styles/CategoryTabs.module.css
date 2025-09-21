@@ -1,0 +1,36 @@
+.tabs {
+  display: flex;
+  gap: 10px;
+  overflow: auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  scroll-snap-type: x mandatory;
+}
+
+.tab {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  min-width: 72px;
+  background: var(--card);
+}
+
+.active {
+  border-color: transparent;
+  box-shadow: var(--shadow);
+}
+
+.tabImage {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.tabLabel {
+  font-size: 12px;
+}

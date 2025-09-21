@@ -1,0 +1,146 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.4);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 25;
+}
+
+.overlayOpen {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  position: fixed;
+  left: 50%;
+  bottom: -100%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow);
+  transition: bottom 0.25s ease;
+  z-index: 30;
+}
+
+.modalOpen {
+  bottom: 0;
+}
+
+.modalHeader {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modalThumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.modalInfo {
+  flex: 1 1 auto;
+}
+
+.modalTitle {
+  font-weight: 800;
+}
+
+.modalDesc {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.closeButton {
+  border: none;
+  background: var(--card);
+  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.modalBody {
+  max-height: 60dvh;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.optionGroup {
+  margin: 10px 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.optionGroup:last-of-type {
+  border-bottom: 0;
+}
+
+.optionGroupTitle {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.optionLabel {
+  flex: 1;
+}
+
+.optionHint {
+  color: var(--muted);
+}
+
+.modalFooter {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.modalTotal {
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.ctaButton {
+  background: var(--brand);
+  color: #fff;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  flex: 1;
+}
+
+.badge {
+  font-size: 11px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.optionalHint {
+  color: var(--muted);
+  font-size: 11px;
+}
