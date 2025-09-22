@@ -25,12 +25,39 @@ export class OrderRepository {
     this.queueEndpoint = options.queueEndpoint ?? DEFAULT_QUEUE_ENDPOINT ?? undefined;
   }
 
+  public getEndpoint(): string {
+    return this.endpoint;
+  }
+
+  public getQueueEndpoint(): string | undefined {
+    return this.queueEndpoint;
+  }
+
   public async create(order: OrderRequest): Promise<OrderResponse> {
     if (this.queueEndpoint) {
       return this.enqueue(order);
     }
 
     return this.persist(order);
+  }
+
+  public async listPending(): Promise<OrderResponse[]> {
+    const targetUrl = this.queueEndpoint ?? `${this.endpoint}?status=pending`;
+    const response = await fetch(targetUrl, { method: 'GET' });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Falha ao carregar fila de pedidos: ${response.status} ${errorText || response.statusText}`.trim(),
+      );
+    }
+
+    const parsed = await this.tryParseJson<OrderResponse[]>(response);
+    const orders = Array.isArray(parsed) ? parsed : [];
+
+    return orders
+      .filter((order) => order.status === 'pending' || order.status === 'queued')
+      .sort((first, second) => this.compareByDate(first.createdAt, second.createdAt));
   }
 
   private async persist(order: OrderRequest): Promise<OrderResponse> {
@@ -102,5 +129,14 @@ export class OrderRepository {
       createdAt: overrides.createdAt ?? new Date().toISOString(),
       metadata: overrides.metadata ?? order.metadata,
     };
+  }
+
+  private compareByDate(first: string, second: string): number {
+    return this.parseDate(first) - this.parseDate(second);
+  }
+
+  private parseDate(value: string): number {
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 0 : timestamp;
   }
 }
