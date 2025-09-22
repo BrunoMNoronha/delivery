@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from 'react';
 export type GeolocationStatus = 'idle' | 'loading' | 'success' | 'error' | 'unsupported';
 
 export type GeolocationAdapterOptions = Pick<
-  GeolocationPositionOptions,
+  PositionOptions,
   'enableHighAccuracy' | 'timeout' | 'maximumAge'
 >;
 

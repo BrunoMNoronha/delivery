@@ -1,0 +1,131 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  min-width: 260px;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.caption {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.balance {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.dateLabel {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.refresh {
+  align-self: flex-start;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 0;
+  background: color-mix(in srgb, var(--fg) 16%, transparent);
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.18);
+  color: #c62828;
+  font-size: 0.9rem;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.metric dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.metric dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.positive dd {
+  color: var(--ok);
+}
+
+.negative dd {
+  color: #d32f2f;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.footerLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.footerValue {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+@media (max-width: 640px) {
+  .card {
+    width: 100%;
+  }
+
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+}

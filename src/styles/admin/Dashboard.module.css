@@ -9,15 +9,17 @@
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .headingGroup {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 260px;
 }
 
 .title {
@@ -29,6 +31,12 @@
 .subtitle {
   margin: 0;
   color: var(--muted);
+}
+
+.kpis {
+  flex: 1 1 300px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .columns {
@@ -55,5 +63,9 @@
 
   .columns {
     grid-template-columns: 1fr;
+  }
+
+  .kpis {
+    justify-content: flex-start;
   }
 }
