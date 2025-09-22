@@ -52,6 +52,8 @@ export interface OrderCommandServiceOptions {
 export class OrderCommandService {
   private readonly acceptCommand: OrderCommand;
 
+  private readonly confirmCommand: OrderCommand;
+
   private readonly discardCommand: OrderCommand;
 
   public constructor(options: OrderCommandServiceOptions) {
@@ -62,6 +64,12 @@ export class OrderCommandService {
       `${baseEndpoint}/${encodeURIComponent(orderId)}`;
 
     this.acceptCommand = new UpdateOrderStatusCommand({
+      buildEndpoint: endpointBuilder,
+      status: 'queued',
+      requestInitFactory,
+    });
+
+    this.confirmCommand = new UpdateOrderStatusCommand({
       buildEndpoint: endpointBuilder,
       status: 'confirmed',
       requestInitFactory,
@@ -76,6 +84,10 @@ export class OrderCommandService {
 
   public async acceptOrder(orderId: string): Promise<void> {
     await this.acceptCommand.execute(orderId);
+  }
+
+  public async confirmOrder(orderId: string): Promise<void> {
+    await this.confirmCommand.execute(orderId);
   }
 
   public async discardOrder(orderId: string): Promise<void> {
