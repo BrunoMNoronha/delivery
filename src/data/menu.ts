@@ -7,7 +7,7 @@ const createEmojiImage = (emoji: string, background: string): string => {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
-const createPizzaOptions = (): ProductOptions => ({
+const PIZZA_OPTIONS: ProductOptions = {
   groups: [
     {
       key: 'size',
@@ -42,7 +42,7 @@ const createPizzaOptions = (): ProductOptions => ({
       ],
     },
   ],
-});
+};
 
 export const PRODUCTS: Product[] = [
   {
@@ -52,7 +52,7 @@ export const PRODUCTS: Product[] = [
     desc: 'Média | mussarela, tomate, manjericão',
     price: 34.9,
     img: createEmojiImage('🍅', '#ffe4d6'),
-    opts: createPizzaOptions(),
+    opts: PIZZA_OPTIONS,
   },
   {
     id: 'pz2',
@@ -61,7 +61,7 @@ export const PRODUCTS: Product[] = [
     desc: 'Média | pepperoni, queijo',
     price: 39.9,
     img: createEmojiImage('🧀', '#fff3c4'),
-    opts: createPizzaOptions(),
+    opts: PIZZA_OPTIONS,
   },
   {
     id: 'pz3',
@@ -70,7 +70,7 @@ export const PRODUCTS: Product[] = [
     desc: 'Média | frango, cebola, milho',
     price: 42.5,
     img: createEmojiImage('🌽', '#fde68a'),
-    opts: createPizzaOptions(),
+    opts: PIZZA_OPTIONS,
   },
   {
     id: 'sl1',
