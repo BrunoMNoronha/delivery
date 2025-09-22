@@ -5,7 +5,8 @@ import CategoryTabs from './components/CategoryTabs';
 import Header from './components/Header';
 import MenuList from './components/MenuList';
 import ProductModal from './components/ProductModal';
-import { CATEGORIES, PRODUCTS, WHATSAPP_NUMBER } from './data/menu';
+import { getMessagingConfig } from './config/messaging';
+import { CATEGORIES, PRODUCTS } from './data/menu';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useLocalStorageCart } from './hooks/useLocalStorageCart';
 import type { CartSelection, CartTotals, Product } from './types/menu';
@@ -15,6 +16,8 @@ import { OrderRepository } from './services/OrderRepository';
 import { buildCartLines, createCartKey } from './utils/cart';
 import { formatCurrency } from './utils/format';
 import styles from './styles/App.module.css';
+
+const { whatsappNumber } = getMessagingConfig();
 
 const App: FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>(CATEGORIES[0]?.name ?? '');
@@ -232,7 +235,7 @@ const App: FC = () => {
       const orderResponse = await orderRepository.create(orderRequest);
       const orderReference = orderResponse.id ? `Pedido #${orderResponse.id}%0A%0A` : '';
       const message = `Pizzaria Minutu's - novo pedido%0A%0A${orderReference}${linesSummary}%0A%0ATotal: ${totalText}%0AEntrega: ${encodedAddress}%0A`;
-      const checkoutUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+      const checkoutUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
       window.open(checkoutUrl, '_blank');
       clear();
       setIsCartOpen(false);

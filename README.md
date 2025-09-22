@@ -5,12 +5,19 @@
 - Run `npm run dev` to start the Vite development server. When `import.meta.env.DEV` is true (the default for `npm run dev`), the application automatically loads the [Mock Service Worker](https://mswjs.io/) and intercepts calls to `/api/orders`, returning structured `OrderResponse` payloads with generated identifiers and timestamps. This keeps the existing Repository pattern untouched, so you can seamlessly switch between mock and real backends.
 - To temporarily connect to a real backend while still in development, define either `VITE_ORDERS_ENDPOINT` or `VITE_ORDERS_QUEUE_ENDPOINT` in a `.env.development` file (or via your shell) before launching Vite. When these variables are present, the repository targets those URLs and the MSW worker continues to bypass unhandled requests.
 
+### Configuring the WhatsApp order channel
+
+- `VITE_WHATSAPP_NUMBER` controls the phone number used when the checkout flow opens `wa.me`. Provide the value as digits only (e.g., `5581999999999`). The runtime strips non-numeric characters and falls back to the demo number when the value is missing or too short.
+- For ad-hoc testing, export the variable inline alongside any script, such as `VITE_WHATSAPP_NUMBER="5581999999999" npm run dev` or `VITE_WHATSAPP_NUMBER="5581999999999" npm run preview`.
+- Persist the configuration in `.env.development`, `.env.production`, or the environment section of your hosting provider when the same number should be reused across deploys.
+
 ## Configuring real endpoints for production
 
 Before building or deploying, point the application to your production backend by setting:
 
 - `VITE_ORDERS_ENDPOINT` with the absolute URL that persists new orders.
 - `VITE_ORDERS_QUEUE_ENDPOINT` when you want new orders to be queued instead of persisted directly.
+- `VITE_WHATSAPP_NUMBER` to override the WhatsApp destination for production checkouts.
 
 You can define the variables in `.env.production`, export them inline (e.g., `VITE_ORDERS_ENDPOINT="https://api.example.com/orders" npm run build`), or configure them through your hosting provider.
 
