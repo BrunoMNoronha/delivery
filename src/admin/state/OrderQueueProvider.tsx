@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { FC, ReactNode } from 'react';
-import type { CashFlowSnapshot } from '../../types/cash';
+import type { CashEntry, CashFlowSnapshot } from '../../types/cash';
 import type { OrderResponse } from '../../types/order';
-import { CashFlowService } from '../../services/CashFlowService';
+import {
+  CashFlowService,
+  CashFlowRegistrationError,
+  type CashFlowRecordPaymentResult,
+} from '../../services/CashFlowService';
 import { OrderCommandService } from '../../services/OrderCommandService';
 import { OrderRepository } from '../../services/OrderRepository';
 import { OrderQueueContext, type OrderQueueContextValue } from './OrderQueueContext';
@@ -188,37 +192,74 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
     async (orderId: string): Promise<void> => {
       dispatch({ type: 'PROCESS_START', orderId });
       dispatch({ type: 'CASH_SUMMARY_LOADING' });
-      let summaryHandled = false;
       try {
         const order = state.orders.find((item) => item.id === orderId);
         if (!order) {
           throw new Error('Pedido não encontrado na fila.');
         }
 
-        try {
-          const snapshot = await cashFlowService.recordPayment(order, order.totals.total);
-          dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot });
-          summaryHandled = true;
-        } catch (cashFlowError) {
-          const message =
-            cashFlowError instanceof Error
-              ? cashFlowError.message
-              : 'Falha ao registrar pagamento no fluxo de caixa.';
-          dispatch({ type: 'CASH_SUMMARY_FAILURE', message });
-          summaryHandled = true;
-          throw cashFlowError;
-        }
+        const previousStatus = order.status;
+        const previousSummary = state.cashSummary;
+        let confirmationCompleted = false;
+        let paymentResult: CashFlowRecordPaymentResult | null = null;
 
-        await commandService.confirmOrder(orderId);
-        dispatch({ type: 'REMOVE_ORDER', orderId });
-        void refresh();
+        try {
+          await commandService.confirmOrder(orderId);
+          confirmationCompleted = true;
+
+          paymentResult = await cashFlowService.recordPayment(order, order.totals.total);
+          dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot: paymentResult.snapshot });
+
+          dispatch({ type: 'REMOVE_ORDER', orderId });
+          void refresh();
+        } catch (operationError) {
+          let snapshot: CashFlowSnapshot | null = previousSummary ?? null;
+          let summaryError: string | null = null;
+
+          const compensate = async (entry: CashEntry): Promise<void> => {
+            try {
+              const compensationSnapshot = await cashFlowService.compensatePayment(entry, {
+                reason: 'Estorno após falha na confirmação do pagamento.',
+              });
+              snapshot = compensationSnapshot;
+            } catch (compensationError) {
+              console.error('Falha ao compensar lançamento de caixa.', compensationError);
+              summaryError = 'Falha ao reverter lançamento de caixa.';
+            }
+          };
+
+          if (paymentResult) {
+            await compensate(paymentResult.entry);
+          } else if (operationError instanceof CashFlowRegistrationError && operationError.entry) {
+            await compensate(operationError.entry);
+          }
+
+          if (confirmationCompleted) {
+            try {
+              await commandService.restoreOrderStatus(orderId, previousStatus);
+              void refresh();
+            } catch (recoveryError) {
+              console.error('Falha ao restaurar status do pedido.', recoveryError);
+            }
+          }
+
+          const message =
+            operationError instanceof Error
+              ? operationError.message
+              : 'Falha ao confirmar pagamento.';
+          dispatch({ type: 'PROCESS_FAILURE', message });
+
+          if (summaryError) {
+            dispatch({ type: 'CASH_SUMMARY_FAILURE', message: summaryError });
+          } else {
+            dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot });
+          }
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Falha ao confirmar pagamento.';
         dispatch({ type: 'PROCESS_FAILURE', message });
-        if (!summaryHandled) {
-          dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot: state.cashSummary });
-        }
+        dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot: state.cashSummary });
       } finally {
         dispatch({ type: 'PROCESS_END' });
       }

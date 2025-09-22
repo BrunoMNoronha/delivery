@@ -56,30 +56,19 @@ export class OrderCommandService {
 
   private readonly discardCommand: OrderCommand;
 
+  private readonly endpointBuilder: EndpointBuilder;
+
+  private readonly requestInitFactory: RequestInitFactory;
+
   public constructor(options: OrderCommandServiceOptions) {
     const baseEndpoint = this.resolveBaseEndpoint(options);
-    const requestInitFactory =
+    this.requestInitFactory =
       options.requestInitFactory ?? OrderCommandService.createDefaultRequestFactory();
-    const endpointBuilder: EndpointBuilder = (orderId: string): string =>
-      `${baseEndpoint}/${encodeURIComponent(orderId)}`;
+    this.endpointBuilder = (orderId: string): string => `${baseEndpoint}/${encodeURIComponent(orderId)}`;
 
-    this.acceptCommand = new UpdateOrderStatusCommand({
-      buildEndpoint: endpointBuilder,
-      status: 'queued',
-      requestInitFactory,
-    });
-
-    this.confirmCommand = new UpdateOrderStatusCommand({
-      buildEndpoint: endpointBuilder,
-      status: 'confirmed',
-      requestInitFactory,
-    });
-
-    this.discardCommand = new UpdateOrderStatusCommand({
-      buildEndpoint: endpointBuilder,
-      status: 'failed',
-      requestInitFactory,
-    });
+    this.acceptCommand = this.createUpdateStatusCommand('queued');
+    this.confirmCommand = this.createUpdateStatusCommand('confirmed');
+    this.discardCommand = this.createUpdateStatusCommand('failed');
   }
 
   public async acceptOrder(orderId: string): Promise<void> {
@@ -94,6 +83,11 @@ export class OrderCommandService {
     await this.discardCommand.execute(orderId);
   }
 
+  public async restoreOrderStatus(orderId: string, status: OrderStatus): Promise<void> {
+    const command = this.resolveCommandForStatus(status);
+    await command.execute(orderId);
+  }
+
   private resolveBaseEndpoint(options: OrderCommandServiceOptions): string {
     const rawEndpoint =
       options.commandEndpoint ??
@@ -101,6 +95,27 @@ export class OrderCommandService {
       options.repository.getEndpoint();
 
     return rawEndpoint.replace(/\/$/, '');
+  }
+
+  private createUpdateStatusCommand(status: OrderStatus): OrderCommand {
+    return new UpdateOrderStatusCommand({
+      buildEndpoint: this.endpointBuilder,
+      status,
+      requestInitFactory: this.requestInitFactory,
+    });
+  }
+
+  private resolveCommandForStatus(status: OrderStatus): OrderCommand {
+    switch (status) {
+      case 'queued':
+        return this.acceptCommand;
+      case 'confirmed':
+        return this.confirmCommand;
+      case 'failed':
+        return this.discardCommand;
+      default:
+        return this.createUpdateStatusCommand(status);
+    }
   }
 
   private static createDefaultRequestFactory(): RequestInitFactory {

@@ -15,7 +15,7 @@ import type {
   CashEntryRepository,
   CashFlowReadRepository,
 } from '../services/CashFlowService';
-import { CashFlowService } from '../services/CashFlowService';
+import { CashFlowService, CashFlowRegistrationError } from '../services/CashFlowService';
 import type { CashEntry, CashFlowSnapshot, PaymentMethod } from '../types/cash';
 
 type PatchCall = {
@@ -141,8 +141,15 @@ const createSnapshotFromEntries = (entries: CashEntry[]): CashFlowSnapshot | nul
   };
 };
 
-const createInMemoryCashFlowService = (): CashFlowService => {
+interface InMemoryCashFlowServiceOptions {
+  failOnFirstDailySnapshot?: boolean;
+}
+
+const createInMemoryCashFlowService = (
+  options: InMemoryCashFlowServiceOptions = {},
+): { service: CashFlowService; recordedEntries: CashEntry[] } => {
   const recordedEntries: CashEntry[] = [];
+  let shouldFailDailySnapshot = options.failOnFirstDailySnapshot ?? false;
 
   const unitOfWorkFactory: CashFlowUnitOfWorkFactory = async (): Promise<CashFlowUnitOfWork> => {
     const entryRepository: CashEntryRepository = {
@@ -157,10 +164,19 @@ const createInMemoryCashFlowService = (): CashFlowService => {
     };
 
     const readRepository: CashFlowReadRepository = {
-      getDailySnapshot: async (_date: string): Promise<CashFlowSnapshot | null> => {
+      getDailySnapshot: async (date: string): Promise<CashFlowSnapshot | null> => {
+        void date;
+        if (shouldFailDailySnapshot) {
+          shouldFailDailySnapshot = false;
+          throw new Error('Falha simulada ao carregar resumo do caixa.');
+        }
         return createSnapshotFromEntries(recordedEntries);
       },
       getSummary: async (): Promise<CashFlowSnapshot[]> => {
+        if (shouldFailDailySnapshot) {
+          shouldFailDailySnapshot = false;
+          throw new Error('Falha simulada ao carregar resumo do caixa.');
+        }
         const snapshot = createSnapshotFromEntries(recordedEntries);
         return snapshot ? [snapshot] : [];
       },
@@ -175,10 +191,12 @@ const createInMemoryCashFlowService = (): CashFlowService => {
     };
   };
 
-  return new CashFlowService({
+  const service = new CashFlowService({
     unitOfWorkFactory,
     now: (): Date => new Date('2024-01-01T12:00:00Z'),
   });
+
+  return { service, recordedEntries };
 };
 
 const TestDashboard: FC = () => {
@@ -217,10 +235,15 @@ const TestDashboard: FC = () => {
   );
 };
 
-const renderDashboard = async (): Promise<void> => {
+interface RenderDashboardOptions {
+  cashFlowService?: CashFlowService;
+  commandService?: OrderCommandService;
+}
+
+const renderDashboard = async (options: RenderDashboardOptions = {}): Promise<void> => {
   const repository = new OrderRepository({ endpoint: '/api/orders', queueEndpoint: '/api/orders' });
-  const commandService = new OrderCommandService({ repository });
-  const cashFlowService = createInMemoryCashFlowService();
+  const commandService = options.commandService ?? new OrderCommandService({ repository });
+  const cashFlowService = options.cashFlowService ?? createInMemoryCashFlowService().service;
 
   render(
     <OrderQueueProvider
@@ -297,5 +320,61 @@ describe('Admin dashboard command integration', (): void => {
 
     expect(patchCalls[0]).toEqual({ orderId: currentOrder.id, status: 'failed' });
     expect(patchResponses[0]?.status).toBe('failed');
+  });
+
+  it('não registra fluxo de caixa quando a confirmação do pedido falha', async (): Promise<void> => {
+    const { service: cashFlowService, recordedEntries } = createInMemoryCashFlowService();
+
+    server.use(
+      http.patch('/api/orders/:orderId', async ({ params, request }) => {
+        const { orderId } = params as { orderId: string };
+        const body = (await request.json()) as UpdateStatusPayload;
+        patchCalls.push({ orderId, status: body.status });
+        return HttpResponse.json({ message: 'Erro forçado' }, { status: 500 });
+      }),
+    );
+
+    await renderDashboard({ cashFlowService });
+
+    const confirmButton = await screen.findByRole('button', { name: /confirmar pagamento/i });
+    fireEvent.click(confirmButton);
+
+    await waitFor((): void => {
+      expect(patchCalls).toHaveLength(1);
+    });
+
+    expect(patchCalls[0]).toEqual({ orderId: currentOrder.id, status: 'confirmed' });
+    expect(recordedEntries).toHaveLength(0);
+  });
+
+  it('reverte status e compensa lançamento ao falhar registro financeiro', async (): Promise<void> => {
+    const previousStatus = currentOrder.status;
+    const { service: cashFlowService, recordedEntries } = createInMemoryCashFlowService();
+    const originalRecordPayment = cashFlowService.recordPayment.bind(cashFlowService);
+    cashFlowService.recordPayment = async (order, amount) => {
+      const result = await originalRecordPayment(order, amount);
+      throw new CashFlowRegistrationError('Falha simulada após registrar pagamento.', {
+        entry: result.entry,
+      });
+    };
+
+    await renderDashboard({ cashFlowService });
+
+    const confirmButton = await screen.findByRole('button', { name: /confirmar pagamento/i });
+    fireEvent.click(confirmButton);
+
+    await waitFor((): void => {
+      expect(patchCalls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    expect(patchCalls[0]).toEqual({ orderId: currentOrder.id, status: 'confirmed' });
+    expect(patchCalls[1]).toEqual({ orderId: currentOrder.id, status: previousStatus });
+
+    await waitFor((): void => {
+      expect(recordedEntries.length).toBeGreaterThanOrEqual(2);
+    });
+
+    const snapshot = createSnapshotFromEntries(recordedEntries);
+    expect(snapshot?.netChange ?? 0).toBeCloseTo(0, 5);
   });
 });

@@ -1,6 +1,24 @@
 import type { CashEntry, CashFlowSnapshot, CashFlowSummaryQuery, PaymentMethod } from '../types/cash';
 import type { OrderResponse } from '../types/order';
 
+export interface CashFlowRecordPaymentResult {
+  entry: CashEntry;
+  snapshot: CashFlowSnapshot;
+}
+
+export class CashFlowRegistrationError extends Error {
+  public readonly entry: CashEntry | null;
+
+  public readonly originalError: unknown;
+
+  public constructor(message: string, options: { entry?: CashEntry; cause?: unknown } = {}) {
+    super(message);
+    this.name = 'CashFlowRegistrationError';
+    this.entry = options.entry ?? null;
+    this.originalError = options.cause ?? null;
+  }
+}
+
 export interface CashEntryRepository {
   append(entry: Omit<CashEntry, 'id'>): Promise<CashEntry>;
   appendBatch?(entries: Array<Omit<CashEntry, 'id'>>): Promise<CashEntry[]>;
@@ -223,9 +241,14 @@ export class CashFlowService {
     this.eventPublisher = options.eventPublisher;
   }
 
-  public async recordPayment(order: OrderResponse, amount: number): Promise<CashFlowSnapshot> {
+  public async recordPayment(
+    order: OrderResponse,
+    amount: number,
+  ): Promise<CashFlowRecordPaymentResult> {
     const unitOfWork = await this.unitOfWorkFactory();
     await unitOfWork.begin();
+
+    let persistedEntry: CashEntry | null = null;
 
     try {
       const timestamp = this.now().toISOString();
@@ -244,19 +267,27 @@ export class CashFlowService {
         },
       };
 
-      const entry = await unitOfWork.cashEntryRepository.append(entryPayload);
+      persistedEntry = await unitOfWork.cashEntryRepository.append(entryPayload);
       const snapshot =
-        (await unitOfWork.cashFlowReadRepository.getDailySnapshot(entry.effectiveAt.slice(0, 10))) ??
-        this.createFallbackSnapshot(entry);
+        (await unitOfWork.cashFlowReadRepository.getDailySnapshot(
+          persistedEntry.effectiveAt.slice(0, 10),
+        )) ?? this.createFallbackSnapshot(persistedEntry);
 
       await unitOfWork.commit();
       if (this.eventPublisher) {
-        await this.eventPublisher.publish(entry);
+        await this.eventPublisher.publish(persistedEntry);
       }
 
-      return snapshot;
+      return { entry: persistedEntry, snapshot };
     } catch (error) {
       await this.safeRollback(unitOfWork);
+      if (persistedEntry) {
+        throw new CashFlowRegistrationError('Falha ao confirmar pagamento.', {
+          entry: persistedEntry,
+          cause: error,
+        });
+      }
+
       throw this.toDomainError(error, 'Falha ao confirmar pagamento.');
     }
   }
@@ -280,6 +311,48 @@ export class CashFlowService {
     } catch (error) {
       await this.safeRollback(unitOfWork);
       throw this.toDomainError(error, 'Falha ao carregar resumo diário do caixa.');
+    }
+  }
+
+  public async compensatePayment(
+    entry: CashEntry,
+    options: { reason?: string } = {},
+  ): Promise<CashFlowSnapshot> {
+    const unitOfWork = await this.unitOfWorkFactory();
+    await unitOfWork.begin();
+
+    try {
+      const timestamp = this.now().toISOString();
+      const compensationPayload: Omit<CashEntry, 'id'> = {
+        orderId: entry.orderId,
+        operation: 'outflow',
+        amount: entry.amount,
+        paymentMethod: entry.paymentMethod,
+        recordedAt: timestamp,
+        effectiveAt: timestamp,
+        description: options.reason ?? `Estorno de pagamento do pedido #${entry.orderId}`,
+        metadata: {
+          ...(entry.metadata ?? {}),
+          origin: 'admin-dashboard',
+          compensatedEntryId: entry.id,
+        },
+      };
+
+      const compensationEntry = await unitOfWork.cashEntryRepository.append(compensationPayload);
+      const snapshot =
+        (await unitOfWork.cashFlowReadRepository.getDailySnapshot(
+          compensationEntry.effectiveAt.slice(0, 10),
+        )) ?? this.createFallbackSnapshot(compensationEntry);
+
+      await unitOfWork.commit();
+      if (this.eventPublisher) {
+        await this.eventPublisher.publish(compensationEntry);
+      }
+
+      return snapshot;
+    } catch (error) {
+      await this.safeRollback(unitOfWork);
+      throw this.toDomainError(error, 'Falha ao reverter lançamento de caixa.');
     }
   }
 
@@ -327,16 +400,21 @@ export class CashFlowService {
   }
 
   private createFallbackSnapshot(entry: CashEntry): CashFlowSnapshot {
+    const isInflow = entry.operation === 'inflow';
+    const inflowAmount = isInflow ? entry.amount : 0;
+    const outflowAmount = isInflow ? 0 : entry.amount;
+    const netChange = isInflow ? entry.amount : -entry.amount;
+
     return {
       date: entry.effectiveAt.slice(0, 10),
-      totalInflow: entry.amount,
-      totalOutflow: 0,
-      netChange: entry.amount,
-      balance: entry.amount,
+      totalInflow: inflowAmount,
+      totalOutflow: outflowAmount,
+      netChange,
+      balance: netChange,
       lastEntryId: entry.id,
       lastEntryAt: entry.effectiveAt,
       breakdownByMethod: {
-        [entry.paymentMethod]: entry.amount,
+        [entry.paymentMethod]: isInflow ? entry.amount : -entry.amount,
       },
     };
   }
