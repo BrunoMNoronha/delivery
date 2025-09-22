@@ -1,4 +1,5 @@
 import type { ChangeEventHandler, FC } from 'react';
+import { Link } from 'react-router-dom';
 import type { GeolocationStatus } from '../hooks/useGeolocation';
 import styles from '../styles/Header.module.css';
 
@@ -55,6 +56,13 @@ const Header: FC<HeaderProps> = ({
           <div className={styles.mark}>🍕</div>
           <div>Pizzaria Minutu’s</div>
         </div>
+        <Link
+          to="/admin/login"
+          className={styles.adminLink}
+          aria-label="Ir para login administrativo"
+        >
+          Área Admin
+        </Link>
         <button type="button" className={styles.iconButton} onClick={handleThemeClick} aria-label="Alternar tema">
           ◐
         </button>
