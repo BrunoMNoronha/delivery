@@ -9,6 +9,9 @@ import { CATEGORIES, PRODUCTS, WHATSAPP_NUMBER } from './data/menu';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useLocalStorageCart } from './hooks/useLocalStorageCart';
 import type { CartSelection, CartTotals, Product } from './types/menu';
+import type { OrderRequest } from './types/order';
+import { mapCartLineToOrderItem } from './types/order';
+import { OrderRepository } from './services/OrderRepository';
 import { buildCartLines, createCartKey } from './utils/cart';
 import { formatCurrency } from './utils/format';
 import styles from './styles/App.module.css';
@@ -21,7 +24,9 @@ const App: FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
   const cartButtonRef = useRef<HTMLButtonElement | null>(null);
+  const orderRepository = useMemo<OrderRepository>(() => new OrderRepository(), []);
 
   const { cartMap, increment, clear } = useLocalStorageCart();
   const geolocation = useGeolocation({
@@ -185,10 +190,27 @@ const App: FC = () => {
     increment(key, -1);
   };
 
-  const handleCheckout = (): void => {
-    if (totals.count === 0) {
+  const handleCheckout = async (): Promise<void> => {
+    if (totals.count === 0 || isSubmittingOrder) {
       return;
     }
+
+    const orderRequest: OrderRequest = {
+      customer: {
+        name: 'Cliente via aplicativo web',
+        phone: '',
+      },
+      items: cartLines.map(mapCartLineToOrderItem),
+      totals,
+      address: {
+        label: address || 'Endereço pendente',
+      },
+      status: 'pending',
+      metadata: {
+        addressText: address,
+        channel: 'web',
+      },
+    };
 
     const linesSummary = cartLines
       .map((line) => {
@@ -204,11 +226,22 @@ const App: FC = () => {
 
     const encodedAddress = encodeURIComponent(address || 'endereço pendente');
     const totalText = formatCurrency(totals.total);
-    const message = `Pizzaria Minutu's - novo pedido%0A%0A${linesSummary}%0A%0ATotal: ${totalText}%0AEntrega: ${encodedAddress}%0A`;
-    const checkoutUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
-    window.open(checkoutUrl, '_blank');
-    clear();
-    setIsCartOpen(false);
+    setIsSubmittingOrder(true);
+
+    try {
+      const orderResponse = await orderRepository.create(orderRequest);
+      const orderReference = orderResponse.id ? `Pedido #${orderResponse.id}%0A%0A` : '';
+      const message = `Pizzaria Minutu's - novo pedido%0A%0A${orderReference}${linesSummary}%0A%0ATotal: ${totalText}%0AEntrega: ${encodedAddress}%0A`;
+      const checkoutUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+      window.open(checkoutUrl, '_blank');
+      clear();
+      setIsCartOpen(false);
+    } catch (error) {
+      console.error('Erro ao registrar pedido', error);
+      window.alert('Não foi possível registrar o pedido. Tente novamente em instantes.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   const handleToggleTheme = (): void => {
@@ -256,6 +289,7 @@ const App: FC = () => {
         onIncrement={handleIncrementLine}
         onDecrement={handleDecrementLine}
         onCheckout={handleCheckout}
+        isProcessingCheckout={isSubmittingOrder}
       />
       <ProductModal
         product={selectedProduct}

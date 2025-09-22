@@ -11,7 +11,8 @@ export interface CartSheetProps {
   onClose: () => void;
   onIncrement: (key: string) => void;
   onDecrement: (key: string) => void;
-  onCheckout: () => void;
+  onCheckout: () => void | Promise<void>;
+  isProcessingCheckout?: boolean;
 }
 
 const CartSheet: FC<CartSheetProps> = ({
@@ -22,8 +23,11 @@ const CartSheet: FC<CartSheetProps> = ({
   onIncrement,
   onDecrement,
   onCheckout,
+  isProcessingCheckout = false,
 }) => {
   const sheetClassName = `${styles.sheet} ${isOpen ? styles.open : ''}`.trim();
+  const checkoutDisabled = totals.count === 0 || isProcessingCheckout;
+  const checkoutTotal = formatCurrency(totals.total);
 
   return (
     <section className={sheetClassName} aria-hidden={!isOpen}>
@@ -65,10 +69,17 @@ const CartSheet: FC<CartSheetProps> = ({
         <button
           type="button"
           className={styles.checkout}
-          disabled={totals.count === 0}
+          disabled={checkoutDisabled}
+          aria-busy={isProcessingCheckout}
           onClick={onCheckout}
         >
-          Finalizar • <span>{formatCurrency(totals.total)}</span>
+          {isProcessingCheckout ? (
+            <span>Enviando...</span>
+          ) : (
+            <>
+              Finalizar • <span>{checkoutTotal}</span>
+            </>
+          )}
         </button>
       </div>
     </section>
