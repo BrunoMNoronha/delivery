@@ -1,5 +1,19 @@
 # React + TypeScript + Vite
 
+## Mocking order APIs during development
+
+- Run `npm run dev` to start the Vite development server. When `import.meta.env.DEV` is true (the default for `npm run dev`), the application automatically loads the [Mock Service Worker](https://mswjs.io/) and intercepts calls to `/api/orders`, returning structured `OrderResponse` payloads with generated identifiers and timestamps. This keeps the existing Repository pattern untouched, so you can seamlessly switch between mock and real backends.
+- To temporarily connect to a real backend while still in development, define either `VITE_ORDERS_ENDPOINT` or `VITE_ORDERS_QUEUE_ENDPOINT` in a `.env.development` file (or via your shell) before launching Vite. When these variables are present, the repository targets those URLs and the MSW worker continues to bypass unhandled requests.
+
+## Configuring real endpoints for production
+
+Before building or deploying, point the application to your production backend by setting:
+
+- `VITE_ORDERS_ENDPOINT` with the absolute URL that persists new orders.
+- `VITE_ORDERS_QUEUE_ENDPOINT` when you want new orders to be queued instead of persisted directly.
+
+You can define the variables in `.env.production`, export them inline (e.g., `VITE_ORDERS_ENDPOINT="https://api.example.com/orders" npm run build`), or configure them through your hosting provider.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
