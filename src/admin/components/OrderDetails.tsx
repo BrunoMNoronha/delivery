@@ -8,6 +8,7 @@ interface OrderDetailsProps {
   isProcessing: boolean;
   processingOrderId: string | null;
   onAccept(orderId: string): Promise<void>;
+  onConfirmPayment(orderId: string): Promise<void>;
   onDiscard(orderId: string): Promise<void>;
 }
 
@@ -46,6 +47,7 @@ const OrderDetails: FC<OrderDetailsProps> = ({
   isProcessing,
   processingOrderId,
   onAccept,
+  onConfirmPayment,
   onDiscard,
 }) => {
   if (!order) {
@@ -63,6 +65,10 @@ const OrderDetails: FC<OrderDetailsProps> = ({
 
   const handleAccept = async (): Promise<void> => {
     await onAccept(order.id);
+  };
+
+  const handleConfirmPayment = async (): Promise<void> => {
+    await onConfirmPayment(order.id);
   };
 
   const handleDiscard = async (): Promise<void> => {
@@ -136,6 +142,14 @@ const OrderDetails: FC<OrderDetailsProps> = ({
           disabled={isBusy}
         >
           {isBusy ? 'Processando…' : 'Aceitar'}
+        </button>
+        <button
+          type="button"
+          className={styles.confirm}
+          onClick={handleConfirmPayment}
+          disabled={isBusy}
+        >
+          {isBusy ? 'Processando…' : 'Confirmar pagamento'}
         </button>
       </footer>
     </section>

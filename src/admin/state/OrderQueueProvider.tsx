@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { FC, ReactNode } from 'react';
+import type { CashFlowSnapshot } from '../../types/cash';
 import type { OrderResponse } from '../../types/order';
+import { CashFlowService } from '../../services/CashFlowService';
 import { OrderCommandService } from '../../services/OrderCommandService';
 import { OrderRepository } from '../../services/OrderRepository';
 import { OrderQueueContext, type OrderQueueContextValue } from './OrderQueueContext';
@@ -8,6 +10,7 @@ import { OrderQueueContext, type OrderQueueContextValue } from './OrderQueueCont
 interface OrderQueueProviderProps {
   repository: OrderRepository;
   commandService: OrderCommandService;
+  cashFlowService: CashFlowService;
   children: ReactNode;
 }
 
@@ -18,6 +21,9 @@ interface OrderQueueState {
   isProcessing: boolean;
   processingOrderId: string | null;
   error: string | null;
+  cashSummary: CashFlowSnapshot | null;
+  cashSummaryError: string | null;
+  isCashSummaryLoading: boolean;
 }
 
 type OrderQueueAction =
@@ -28,7 +34,10 @@ type OrderQueueAction =
   | { type: 'PROCESS_START'; orderId: string }
   | { type: 'PROCESS_FAILURE'; message: string }
   | { type: 'PROCESS_END' }
-  | { type: 'REMOVE_ORDER'; orderId: string };
+  | { type: 'REMOVE_ORDER'; orderId: string }
+  | { type: 'CASH_SUMMARY_LOADING' }
+  | { type: 'CASH_SUMMARY_SUCCESS'; snapshot: CashFlowSnapshot | null }
+  | { type: 'CASH_SUMMARY_FAILURE'; message: string };
 
 const initialState: OrderQueueState = {
   orders: [],
@@ -37,6 +46,9 @@ const initialState: OrderQueueState = {
   isProcessing: false,
   processingOrderId: null,
   error: null,
+  cashSummary: null,
+  cashSummaryError: null,
+  isCashSummaryLoading: false,
 };
 
 const orderQueueReducer = (state: OrderQueueState, action: OrderQueueAction): OrderQueueState => {
@@ -102,6 +114,25 @@ const orderQueueReducer = (state: OrderQueueState, action: OrderQueueAction): Or
         selectedOrderId: nextSelectedId,
       };
     }
+    case 'CASH_SUMMARY_LOADING':
+      return {
+        ...state,
+        isCashSummaryLoading: true,
+        cashSummaryError: null,
+      };
+    case 'CASH_SUMMARY_SUCCESS':
+      return {
+        ...state,
+        isCashSummaryLoading: false,
+        cashSummary: action.snapshot,
+        cashSummaryError: null,
+      };
+    case 'CASH_SUMMARY_FAILURE':
+      return {
+        ...state,
+        isCashSummaryLoading: false,
+        cashSummaryError: action.message,
+      };
     default:
       return state;
   }
@@ -110,20 +141,40 @@ const orderQueueReducer = (state: OrderQueueState, action: OrderQueueAction): Or
 export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
   repository,
   commandService,
+  cashFlowService,
   children,
 }) => {
   const [state, dispatch] = useReducer(orderQueueReducer, initialState);
 
   const refresh = useCallback(async (): Promise<void> => {
     dispatch({ type: 'FETCH_START' });
-    try {
-      const orders = await repository.listPending();
-      dispatch({ type: 'FETCH_SUCCESS', orders });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao carregar pedidos.';
+    dispatch({ type: 'CASH_SUMMARY_LOADING' });
+
+    const [ordersResult, cashResult] = await Promise.allSettled([
+      repository.listPending(),
+      cashFlowService.getDailySummary(new Date()),
+    ]);
+
+    if (ordersResult.status === 'fulfilled') {
+      dispatch({ type: 'FETCH_SUCCESS', orders: ordersResult.value });
+    } else {
+      const message =
+        ordersResult.reason instanceof Error
+          ? ordersResult.reason.message
+          : 'Falha ao carregar pedidos.';
       dispatch({ type: 'FETCH_FAILURE', message });
     }
-  }, [repository]);
+
+    if (cashResult.status === 'fulfilled') {
+      dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot: cashResult.value });
+    } else {
+      const message =
+        cashResult.reason instanceof Error
+          ? cashResult.reason.message
+          : 'Falha ao carregar fluxo de caixa.';
+      dispatch({ type: 'CASH_SUMMARY_FAILURE', message });
+    }
+  }, [repository, cashFlowService]);
 
   useEffect((): void => {
     void refresh();
@@ -132,6 +183,48 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
   const selectOrder = useCallback((orderId: string | null): void => {
     dispatch({ type: 'SELECT_ORDER', orderId });
   }, []);
+
+  const confirmPayment = useCallback(
+    async (orderId: string): Promise<void> => {
+      dispatch({ type: 'PROCESS_START', orderId });
+      dispatch({ type: 'CASH_SUMMARY_LOADING' });
+      let summaryHandled = false;
+      try {
+        const order = state.orders.find((item) => item.id === orderId);
+        if (!order) {
+          throw new Error('Pedido não encontrado na fila.');
+        }
+
+        await commandService.acceptOrder(orderId);
+        try {
+          const snapshot = await cashFlowService.recordPayment(order, order.totals.total);
+          dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot });
+          summaryHandled = true;
+        } catch (cashFlowError) {
+          const message =
+            cashFlowError instanceof Error
+              ? cashFlowError.message
+              : 'Falha ao registrar pagamento no fluxo de caixa.';
+          dispatch({ type: 'CASH_SUMMARY_FAILURE', message });
+          summaryHandled = true;
+          throw cashFlowError;
+        }
+
+        dispatch({ type: 'REMOVE_ORDER', orderId });
+        void refresh();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Falha ao confirmar pagamento.';
+        dispatch({ type: 'PROCESS_FAILURE', message });
+        if (!summaryHandled) {
+          dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot: state.cashSummary });
+        }
+      } finally {
+        dispatch({ type: 'PROCESS_END' });
+      }
+    },
+    [cashFlowService, commandService, refresh, state.cashSummary, state.orders],
+  );
 
   const accept = useCallback(
     async (orderId: string): Promise<void> => {
@@ -186,7 +279,11 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
       refresh,
       selectOrder,
       accept,
+      confirmPayment,
       discard,
+      cashSummary: state.cashSummary,
+      cashSummaryError: state.cashSummaryError,
+      isCashSummaryLoading: state.isCashSummaryLoading,
     }),
     [
       state.orders,
@@ -196,9 +293,13 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
       state.isProcessing,
       state.processingOrderId,
       state.error,
+      state.cashSummary,
+      state.cashSummaryError,
+      state.isCashSummaryLoading,
       refresh,
       selectOrder,
       accept,
+      confirmPayment,
       discard,
     ],
   );
