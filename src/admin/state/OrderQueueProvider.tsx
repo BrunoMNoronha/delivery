@@ -195,7 +195,6 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
           throw new Error('Pedido não encontrado na fila.');
         }
 
-        await commandService.acceptOrder(orderId);
         try {
           const snapshot = await cashFlowService.recordPayment(order, order.totals.total);
           dispatch({ type: 'CASH_SUMMARY_SUCCESS', snapshot });
@@ -210,6 +209,7 @@ export const OrderQueueProvider: FC<OrderQueueProviderProps> = ({
           throw cashFlowError;
         }
 
+        await commandService.confirmOrder(orderId);
         dispatch({ type: 'REMOVE_ORDER', orderId });
         void refresh();
       } catch (error) {
