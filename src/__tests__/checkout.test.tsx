@@ -1,9 +1,22 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { MessagingConfig } from '../config/messaging';
 import App from '../App';
 import { OrderRepository } from '../services/OrderRepository';
 import { MemoryRouter } from 'react-router-dom';
 import type { OrderRequest, OrderResponse } from '../types/order';
+
+const { whatsappNumberMock } = vi.hoisted((): { whatsappNumberMock: string } => ({
+  whatsappNumberMock: '5599988877766',
+}));
+
+vi.mock('../config/messaging', (): typeof import('../config/messaging') => {
+  const messagingConfig: MessagingConfig = { whatsappNumber: whatsappNumberMock };
+  return {
+    getMessagingConfig: (): MessagingConfig => messagingConfig,
+    resolveWhatsappNumber: (): string => messagingConfig.whatsappNumber,
+  };
+});
 
 describe('Checkout flow', (): void => {
   beforeAll((): void => {
@@ -101,7 +114,7 @@ describe('Checkout flow', (): void => {
 
     const [checkoutUrl] = windowOpenSpy.mock.calls[0] ?? [];
     expect(typeof checkoutUrl).toBe('string');
-    expect(checkoutUrl).toContain('https://wa.me/');
+    expect(checkoutUrl).toContain(`https://wa.me/${whatsappNumberMock}`);
     expect(checkoutUrl).toContain('order-123');
     expect(checkoutUrl).toContain('Margherita x1');
     expect(checkoutUrl).toContain('Total:');

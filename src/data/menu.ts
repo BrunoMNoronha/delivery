@@ -1,7 +1,5 @@
 import type { Category, Product, ProductOptions } from '../types/menu';
 
-export const WHATSAPP_NUMBER = '5561985007483';
-
 const createEmojiImage = (emoji: string, background: string): string => {
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='100%' height='100%' rx='24' fill='${background}'/><text x='50%' y='52%' text-anchor='middle' font-family='system-ui' font-size='20'>${emoji}</text></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
