@@ -27,10 +27,28 @@ const router = createBrowserRouter([
   },
 ]);
 
-createRoot(document.getElementById('root') as HTMLElement).render(
-  <StrictMode>
-    <AdminAuthProvider>
-      <RouterProvider router={router} />
-    </AdminAuthProvider>
-  </StrictMode>,
-);
+const enableMocking = async (): Promise<void> => {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  const { worker } = await import('./mocks/browser.ts');
+  await worker.start({ onUnhandledRequest: 'bypass' });
+};
+
+const renderApplication = (): void => {
+  createRoot(document.getElementById('root') as HTMLElement).render(
+    <StrictMode>
+      <AdminAuthProvider>
+        <RouterProvider router={router} />
+      </AdminAuthProvider>
+    </StrictMode>,
+  );
+};
+
+const bootstrap = async (): Promise<void> => {
+  await enableMocking();
+  renderApplication();
+};
+
+void bootstrap();
